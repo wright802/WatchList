@@ -1,0 +1,470 @@
+<!----------------------------------------------------------------------------------
+	WatchList
+	An app to track which episodes have been watched.
+	Created by Will Wright. 
+	CC-BY-NC-SA 4.0.
+------------------------------------------------------------------------------------>
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Episodes</title>
+		<link rel="icon" href="favicon.png" type="image/png" sizes="16x16">
+		<meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1">
+		<script src="./papaparse.min.js"></script>
+		<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+		<script src="https://www.w3schools.com/lib/w3.js"></script>
+	</head>
+</html>
+
+<!----------------------------------------------------------------------------------
+	Notes about this Program
+------------------------------------------------------------------------------------
+Files:
++ The .CSV file is the master list of episodes in watch order along with file name of actual movie
++ favicon.png shows logo on browser tabindex
++ logo.png shows on top right corner of page (there may be problem if logo is tall and skinny)
++ papaparse.min.js is used to parse the CSV file
+
+Program Overview:
++ First time run, load data from CSV file
++ The CSV file is not modified by this program
++ The filename of the CSV becomes the title of the series as a header at the top
++ Data is saved and loaded in localStorage
++ The only dymanic data are the checkmarks, nothing else changes
++ If localStorage is cleared, you will lose all of your checkmarks
++ The global variable gData is an object of arrays of objects
++ gData has a .checked property that may have one of two values "" or "checked"
++ With some minor modifications this app should work with other movie series
+	(change <title>, <h1> text, movie icon)
+
+Organization:
++ HTML Content
++ JS for loading table and saving data to localStorage
++ CSS and JS for video playback
++ CSS and JS for menu system (icon and vertical button bar)
++ CSS and JS for overlay text used by about and help menu selections
+
+CSV File Format:
++ The first row in the CSV file must have the following (case and spacing matter):
+	Season, Episode, Title, Date, FileName
++ Order does not matter
++ FileName is relative, such as "./Season 1/Bsg S1 01-12.m4v", notice that spaces are OK
++ A blank FileName is fine, just nothing will play, this column can even be entirely blank
+
+Video:
++ Files are .m4v which in theory isn't supported by <video> tag but seem to play anyway
++ Tested in Firefox and Edge (chrome based)
+
+Warnings:
++ If you rename files be sure to update the CSV file (this is a pain)
++ I worry about the robustness of saving data, which is triggered when window is closed
+	(I left code in for buttons that do it manually)
+
+To-Do:
++ Link text to checkbox so clicking anywhere on row will toggle checkbox
++ Hide "Play" button if video doesn't exist
++ Auto-complete checkbox if end of video is reached
++ Auto-close video pop-up when end is reached
++ Close video when Escape is pressed
++ Close menu when Escape is pressed
++ Close menu when click outside of menu occurs
++ Add more error handling
++ For the help and about menus, sometimes two clicks are needed, fix
+
+Episode details downloaded from somewhere, then placed into recommended watch order as provided by:
+	http://thunderpeel2001.blogspot.com/2010/02/battlestar-galactica-viewing-order.html
+
+-->
+
+
+<html>
+	<body class="w3-container" onload="dataLoad()" onunload="dataSave()">
+	
+
+		<h1>
+			<!-- Place hamburger menu icon to left of title text -->
+			<span class="container" id="menuIcon" onclick="menuToggle()">
+				<div class="bar1"></div>
+				<div class="bar2"></div>
+				<div class="bar3"></div>
+			</span>
+			
+			<span id="screenTitle"> Episodes to Watch </span>
+		</h1>
+
+		<div class="vertical-button-bar" id="menuDetail" style="display: none">
+			<!-- This button triggers the load from CSV by clicking hidden button -->
+			<button id="btnTriggerDataReset" onclick="document.getElementById('csv-file').click();">Load Data From CSV (will clear checkmarks) </button>
+			<!-- This button clears all data from memory and localStorage and empties the table -->
+			<button id="btnClearLocalStorage" onclick="dataClear()"> Clear All Data (full reset) </button>
+			<!-- This button pops up a short description -->
+			<button id="btnHelp" onclick="overlayToggle('+ Load initial data from CSV.<br>	+ This only needs to happen once.<br> + Changes to checkmarks are retained.<br> + Data is saved in localStorage, not in CSV.<br> + localStorage may be purged during system cleanup.<br> + The Clear data menu instantly erases all.')">Help</button>
+			<!-- This button pops up a short description -->
+			<button id="btnAbout" onclick='overlayToggle("WatchList.<br>made by Will Wright.<br><br>Libraries used:<br>+Papa Parse<br>+w3schools")'>About</button>
+		</div>
+		
+		<!-- This hidden button is clicked when the "load from CSV" button is clicked
+			Doing it this way allows for custom wording on the button -->
+		<input type="file" id="csv-file" name="csv-file" accept=".csv" style="display:none;"/>
+		
+		<!-- these buttons are no longer used... data is automatically save/loaded in body onunload/onload
+		<input type="button" id="btnSaveData" value="save data" />
+		<input type="button" id="btnLoadData" value="load data" />
+		-->
+		
+		<!-- display floating logo in top right corner -->
+		<div class="w3-card-4 w3-display-topright w3-margin">
+			<img src="logo.png" alt="Logo" style="width:100%;max-width:100px">
+		</div>
+		
+		<!-- Display overlay for "help" and "about" menus, see bottom of this code -->
+		<div id="overlay" onclick="overlayToggle()">
+			<div id="overlayText">Hello.</div>
+		</div>
+
+		
+		<!-- Display table of episode information -->
+		<table id="grid" style="display:none;" class="w3-table-all w3-hoverable w3-responsive w3-card-4" >
+			<thead>
+				<tr>
+					<th class="w3-center">Viewed</th>
+					<th class="w3-center">Season</th>
+					<th class="w3-center">Episode</th>
+					<th>Title</th>
+					<th class="w3-center">Air Date</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr w3-repeat="episodes">
+					<td class="w3-center"> <input class="w3-check" type="checkbox" oninput="dataChange()" {{checked}}> </td>
+					<td class="w3-center">{{Season}}</td>
+					<td class="w3-center">{{Episode}}</td>
+					<td> {{Title}}</td>
+					<td class="w3-center">{{Date}}</td>
+					<td> <button onclick="videoPlay('{{FileName}}')"> Play </button>
+				</tr>
+			</tbody>
+		</table>
+		
+		<!-- used to close the video popup window -->
+		<div id="video_pop" onclick="onPopClick()"></div>
+		
+		<br> <br>
+		<a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc-sa/4.0/88x31.png" /></a><br /><span xmlns:dct="http://purl.org/dc/terms/" property="dct:title">WatchList</span> by <span xmlns:cc="http://creativecommons.org/ns#" property="cc:attributionName">Will Wright</span> is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/">Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License</a>.
+
+	</body>
+</html>
+
+<script>
+	var gData={};
+	var dataChangeFlag = false;
+	var gSeriesName;
+	//console.clear();
+	
+	document.getElementById("csv-file").addEventListener("change", loadEpisodesFromCSV);
+	
+	//old code to allow manual save and load of data
+	//document.getElementById("btnSaveData").addEventListener("click", dataSave);
+	//document.getElementById("btnLoadData").addEventListener("click", dataLoad); 
+	
+	// every time a checkbox is clicked, set flag that data has changed and a save is needed
+	// I don't know how to tell which row was changed, so save all
+	function dataChange(){
+		console.log("grid change");
+		dataChangeFlag = true;
+	}
+	
+	// save the entire gData object to local storage if something has changed
+	function dataSave(){
+		
+		// only do this process if a checkbox has changed status
+		if (dataChangeFlag == false) {
+			console.log("no data changes to save") 
+		} else {
+		
+			// how many rows in table? Row 0 is titles, so start at row 1 when looping!
+			var rowCount = document.getElementById("grid").rows.length;
+			// console.log("rows in table: " + rowCount);
+			
+			// go through each row and update the "checked" property of the corresponding row in gData
+			// this simple approach only works because html table and gData are always in same order,
+			// just remember that index from table starts at 1, index for gData starts at 0.
+			// The checkmark is the first child in the first cell of each row.
+			for (i=1; i<rowCount; i++){
+				var rowCheckmark = document.getElementById("grid").rows[i].cells[0].children[0].checked
+			
+				if (rowCheckmark == true) {
+					gData.episodes[i-1].checked = "checked";
+				} else {
+					gData.episodes[i-1].checked = "";
+				}
+			}
+			// save episode data to localStorage
+			console.log("saving data to localStorage");
+			localStorage.setItem("episodes", JSON.stringify( gData ) );
+			
+			// save series name to localStorage
+			localStorage.setItem("series", gSeriesName);
+			
+			// reset flag since all data has been saved
+			dataChangeFlag = false;
+		}
+	}
+	
+	// load data from local storage into gData object of arrays of objects!
+	function dataLoad(){
+		console.log("loading from localStorage: ");
+		gData = JSON.parse( localStorage.getItem("episodes") );
+		console.log(gData);
+		gSeriesName = localStorage.getItem("series");
+		dataDisplay();
+	}
+	
+	// load episode data from the CSV file
+	// this is only needed once, or if the localStorage gets cleared
+	// may be triggered by user clicking button
+	// all checkboxes will become unchecked
+	// The column names in the CSV become the properties of the objects and
+	//   also match the {{ }} elements when creating the w3-table in HTML
+	function loadEpisodesFromCSV(evt) {
+		console.log("loading from CSV");
+		
+		// get file name (must be user driven, can't default)
+		var file = evt.target.files[0];
+
+		// trim the .csv from the end to find the name of the series,
+		// which is used to set the title when displaying the data
+		gSeriesName = file.name.substring(0, file.name.length-4);
+		
+		// convert CSV file into array of objects
+		Papa.parse(file, {
+			header: true,
+			dynamicTyping: true,
+			skipEmptyLines: true,
+			complete: function(results, file) {
+				console.log(file);
+				// save results in global variable as an object (req'd for w3-repeat)
+				gData = {episodes: results.data};
+
+				// were there errors? change text on button. 
+				if (results.errors.length > 0){
+					document.getElementById("triggerDataReset").value = "Error occured! Refresh and try again!";
+				}
+
+				// create "checked" property
+				addCheckedProperty();
+		
+				// process newly loaded array of objects
+				dataDisplay();
+				dataChangeFlag = true;
+			}
+		});
+		
+		menuToggle();	// hide the menu
+	}
+	
+	// takes newly loaded data and adds a "checked" property 
+	// .checked="" results in an empty checkbox
+	// .checked="checked" will show a checkmark in the checkbox
+	// refer to the w3-repeat table in the HTML for usage
+	function addCheckedProperty(){
+		for (var i = 0; i<gData.episodes.length; i++) {
+			gData.episodes[i].checked = "";
+		}
+	}
+	
+	// loads up the html table with data and displays it
+ 	function dataDisplay(){
+		// put data into table
+		// refer to the w3-repeat {{ }} HTML table
+		w3.displayObject("grid", gData);
+		
+		// now show the table (app starts with it hidden)
+		document.getElementById("grid").style.display="inline-table";
+		
+		// set the HTML Title and Header to the filename
+		document.title = gSeriesName;
+		document.getElementById("screenTitle").innerHTML = gSeriesName;
+		
+
+	}
+	
+	// do a full reset as if app has never run before
+	function dataClear(){
+		localStorage.clear();
+		gData={};
+		dataChangeFlag=false;
+		document.getElementById("grid").innerHTML = "";
+		menuToggle();	// hide the menu
+	}
+	
+	
+</script>
+
+<style>
+/*****************************************************************************
+	CSS and JavaScript for Video Playback
+******************************************************************************/
+	/* Used to show a dark background behind video pop-up */
+	#video_pop {
+		z-index: 9999;  		/* stay on top */
+		position: fixed;		/* stay in place even if web page behind moves */
+		top: 0px; 
+		left: 0px; 
+		width: 100%; 			/* full width */
+		height: 100%; 			/* full height */
+		background: rgba(0,0,0,0.75); /* grey background */
+		display: none;			/* start with pop-up hidden */
+		cursor: pointer;
+	}
+
+	/* Video pop-up */
+	#the_Video {
+		width: 50%;
+		position: fixed;
+		top: 50%;
+		left: 50%;
+		-webkit-transform: translate(-50%, -50%);	/* no idea what this does but it works */
+		transform: translate(-50%, -50%);
+
+	}
+</style>
+
+<script>
+	// play the local video pointed to by parameter fn (filename)
+	// video plays in a pop-up, defined as a <div> in html
+	function videoPlay(fn){
+		if (fn=="" || fn=="{{FileName}}") {
+			alert("Sorry, that video does not exist here!");
+		} else {
+			console.log(fn);
+			document.getElementById("video_pop").innerHTML = "<video autoplay controls id=\"the_Video\"> <source src=\""+fn+"\" type=\"video/mp4\"></video>";
+			document.getElementById("video_pop").style.display="block";
+		}
+	}
+	
+	// hide pop-up video window when background is checked
+	function onPopClick() {
+		document.getElementById("video_pop").style.display="none";
+		document.getElementById("video_pop").innerHTML = ""; 
+	}
+</script>
+
+
+<style>
+/*****************************************************************************
+	CSS and JavaScript for Menu Icon and Vertical Menu Bar
+******************************************************************************/
+	/* This section and the JavaScript below create the menu, including the icon
+	*/
+	h1 {
+		font-size: 36px;
+	}
+	
+	/* Create the container and bars and change animation for the menu icon */
+	.container {
+		display: inline-block;
+		cursor: pointer;
+		height: 42px;
+		width: 36px;
+		vertical-align: middle;
+	}
+
+	.bar1, .bar2, .bar3 {
+		width: 35px;
+		height: 5px;
+		background-color: #333;
+		margin: 6px 0;
+		transition: 0.4s;
+	}
+
+	.change .bar1 {
+		-webkit-transform: rotate(-45deg) translate(-9px, 6px);
+		transform: rotate(-45deg) translate(-9px, 6px);
+	}
+
+	.change .bar2 {opacity: 0;}
+
+	.change .bar3 {
+		-webkit-transform: rotate(45deg) translate(-8px, -8px);
+		transform: rotate(45deg) translate(-8px, -8px);
+	}
+	
+	/* Create the vertical button bar as a menu */
+	.vertical-button-bar button {
+		background-color: #4CAF50; 	/* Green background */
+		border: 1px solid green; 	/* Green border */
+		color: white; 				/* White text */
+		padding: 10px 24px; 		/* Some padding */
+		cursor: pointer; 			/* Pointer/hand icon */
+		width: 50%; 				/* Set a width if needed */
+		display: block; 			/* Make the buttons appear below each other */
+		transition: 0.4s;
+	}
+
+	.vertical-button-bar button:not(:last-child) {
+		border-bottom: none; 		/* Prevent double borders */
+	}
+
+	/* Add a background color on hover */
+	.vertical-button-bar button:hover {
+		background-color: #3e8e41;	/* darker green */
+	}
+	
+</style>
+
+<script>
+	function menuToggle() {
+		var x = document.getElementById("menuIcon");
+		x.classList.toggle("change");
+		var m = document.getElementById("menuDetail");
+		if (m.style.display == "none") {
+			m.style.display = "block";
+		} else {
+			m.style.display = "none";
+		}
+	}
+</script>
+
+<style>
+/*****************************************************************************
+	CSS and JavaScript for showing overlay text.
+	Used for the help and about menu options.
+******************************************************************************/
+	#overlay {
+		position: fixed;
+		display: none;
+		width: 100%;
+		height: 100%;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-color: rgba(0,0,0,0.75);
+		z-index: 2;
+		cursor: pointer;
+	}
+
+	#overlayText{
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		font-size: 16px;
+		color: white;
+		transform: translate(-50%,-50%);
+		-ms-transform: translate(-50%,-50%);
+	}
+</style>
+<script>
+	// display or hide text as an overlay
+	function overlayToggle(txt) {
+		var x = document.getElementById("overlay");
+		if (x.style.display == "none") {
+			x.style.display = "block";
+			document.getElementById("overlayText").innerHTML = txt;
+			menuToggle(); // hide menu as about text pops up
+		} else {
+			x.style.display = "none";
+		}
+	}
+</script>
