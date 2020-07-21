@@ -1,4 +1,4 @@
-<!----------------------------------------------------------------------------------
+﻿<!----------------------------------------------------------------------------------
 	WatchList
 	An app to track which episodes have been watched.
 	Created by Will Wright. 
@@ -26,8 +26,8 @@ Files:
 + papaparse.min.js is used to parse the CSV file
 
 Program Overview:
-+ First time run, load data from CSV file
-+ The CSV file is not modified by this program
++ First time run this app will load data from CSV file
++ The CSV file is never modified by this program
 + The filename of the CSV becomes the title of the series as a header at the top
 + Data is saved and loaded in localStorage
 + The only dymanic data are the checkmarks, nothing else changes
@@ -37,7 +37,7 @@ Program Overview:
 + With some minor modifications this app should work with other movie series
 	(change <title>, <h1> text, movie icon)
 
-Organization:
+Organization of this file:
 + HTML Content
 + JS for loading table and saving data to localStorage
 + CSS and JS for video playback
@@ -53,7 +53,7 @@ CSV File Format:
 
 Video:
 + Files are .m4v which in theory isn't supported by <video> tag but seem to play anyway
-+ Tested in Firefox and Edge (chrome based)
++ Tested in Firefox and Edge (new chrome based)
 
 Warnings:
 + If you rename files be sure to update the CSV file (this is a pain)
@@ -69,7 +69,7 @@ To-Do:
 + Close menu when Escape is pressed
 + Close menu when click outside of menu occurs
 + Add more error handling
-+ For the help and about menus, sometimes two clicks are needed, fix
++ For the help and about menus, sometimes two clicks are needed, not sure why, but fix it
 
 Episode details downloaded from somewhere, then placed into recommended watch order as provided by:
 	http://thunderpeel2001.blogspot.com/2010/02/battlestar-galactica-viewing-order.html
@@ -92,6 +92,7 @@ Episode details downloaded from somewhere, then placed into recommended watch or
 			<span id="screenTitle"> Episodes to Watch </span>
 		</h1>
 
+		<!-- Here is the code for the menu -->
 		<div class="vertical-button-bar" id="menuDetail" style="display: none">
 			<!-- This button triggers the load from CSV by clicking hidden button -->
 			<button id="btnTriggerDataReset" onclick="document.getElementById('csv-file').click();">Load Data From CSV (will clear checkmarks) </button>
@@ -104,7 +105,7 @@ Episode details downloaded from somewhere, then placed into recommended watch or
 		</div>
 		
 		<!-- This hidden button is clicked when the "load from CSV" button is clicked
-			Doing it this way allows for custom wording on the button -->
+			 This indirect method allows for custom wording on the button -->
 		<input type="file" id="csv-file" name="csv-file" accept=".csv" style="display:none;"/>
 		
 		<!-- these buttons are no longer used... data is automatically save/loaded in body onunload/onload
